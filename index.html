@@ -205,3 +205,170 @@
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .history-index {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>⚡ 발표자 추첨기</h1>
+        <p>명단을 입력하고 버튼을 눌러 공정하게 발표자를 선정해보세요!</p>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <div class="section-title">
+                <span>발표 후보자 명단</span>
+                <span class="count-badge" id="candidateCount">대기: 0명</span>
+            </div>
+            <textarea id="nameInput" placeholder="이름을 줄바꿈(엔터)이나 쉼표(,)로 구분해서 입력해주세요.&#10;예시)&#10;홍길동&#10;김철수, 이영희"></textarea>
+            <label class="options">
+                <input type="checkbox" id="excludeChecked" checked>
+                <span>한 번 뽑힌 사람은 다음 추첨에서 제외하기</span>
+            </label>
+        </div>
+
+        <div class="card display-area">
+            <div class="section-title" style="width: 100%;">추첨 결과</div>
+            <div class="winner-display" id="resultDisplay">READY</div>
+            <button class="btn" id="drawBtn">추첨하기 🎲</button>
+        </div>
+
+        <div class="card history-card">
+            <div class="section-title">
+                <span>추첨 기록</span>
+                <button id="clearHistory" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.85rem; text-decoration:underline;">기록 초기화</button>
+            </div>
+            <div class="history-list" id="historyList">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        const nameInput = document.getElementById('nameInput');
+        const candidateCount = document.getElementById('candidateCount');
+        const resultDisplay = document.getElementById('resultDisplay');
+        const drawBtn = document.getElementById('drawBtn');
+        const excludeChecked = document.getElementById('excludeChecked');
+        const historyList = document.getElementById('historyList');
+        const clearHistory = document.getElementById('clearHistory');
+
+        let currentPool = [];
+        let historyLog = [];
+
+        // 입력창 텍스트로부터 깔끔한 배열 생성
+        function getNames() {
+            const text = nameInput.value;
+            // 줄바꿈 및 쉼표 기준으로 쪼개고 공백 제거, 빈 줄 제거
+            return text.split(/[\n,]+/).map(name => name.trim()).filter(name => name !== '');
+        }
+
+        // 실시간으로 대기 인원 갱신
+        function updatePoolCount() {
+            const names = getNames();
+            if (currentPool.length === 0 || !excludeChecked.checked) {
+                candidateCount.textContent = `대기: ${names.length}명`;
+            } else {
+                candidateCount.textContent = `잔여: ${currentPool.length}명 / 전체: ${names.length}명`;
+            }
+        }
+
+        nameInput.addEventListener('input', () => {
+            currentPool = getNames();
+            updatePoolCount();
+        });
+
+        excludeChecked.addEventListener('change', () => {
+            currentPool = getNames();
+            updatePoolCount();
+        });
+
+        // 추첨 로직 애니메이션
+        function drawPresenter() {
+            // 풀이 비어있으면 새로 고침 (또는 중복 제외 옵션이 아닐 때)
+            if (currentPool.length === 0 || !excludeChecked.checked) {
+                currentPool = getNames();
+            }
+
+            if (currentPool.length === 0) {
+                alert('명단에 유효한 이름을 입력해주세요!');
+                return;
+            }
+
+            // 버튼 비활성화
+            drawBtn.disabled = true;
+            resultDisplay.classList.remove('pick');
+
+            let duration = 2000; // 애니메이션 총 지속 시간 (2초)
+            let intervalTime = 50; // 이름이 바뀌는 속도 (0.05초)
+            let elapsed = 0;
+
+            const allNames = getNames(); // 화면 셔플용 전체 명단
+
+            const timer = setInterval(() => {
+                // 전체 명단 중에서 무작위로 화면에 스치듯 보여줌 (시각적 효과)
+                const randomIdx = Math.floor(Math.random() * allNames.length);
+                resultDisplay.textContent = allNames[randomIdx];
+                elapsed += intervalTime;
+
+                // 시간이 다 되면 멈추고 최종 선발
+                if (elapsed >= duration) {
+                    clearInterval(timer);
+                    
+                    // 실제 잔여 풀에서 선정
+                    const finalIdx = Math.floor(Math.random() * currentPool.length);
+                    const winner = currentPool[finalIdx];
+
+                    // 중복 제거 옵션이 켜져 있으면 배열에서 추출해냄
+                    if (excludeChecked.checked) {
+                        currentPool.splice(finalIdx, 1);
+                    }
+
+                    // 최종 결과 반영
+                    resultDisplay.textContent = winner;
+                    resultDisplay.classList.add('pick');
+                    
+                    // 히스토리 추가
+                    historyLog.push(winner);
+                    renderHistory();
+                    
+                    // 풀 상태 업데이트
+                    updatePoolCount();
+                    drawBtn.disabled = false;
+                }
+            }, intervalTime);
+        }
+
+        // 히스토리 렌더링
+        function renderHistory() {
+            historyList.innerHTML = '';
+            historyLog.forEach((name, idx) => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `<span class="history-index">#${idx + 1}</span> ${name}`;
+                historyList.appendChild(item);
+            });
+        }
+
+        // 초기화
+        clearHistory.addEventListener('click', () => {
+            historyLog = [];
+            renderHistory();
+            currentPool = getNames();
+            updatePoolCount();
+            resultDisplay.textContent = "READY";
+            resultDisplay.classList.remove('pick');
+        });
+
+        drawBtn.addEventListener('click', drawPresenter);
+    </script>
+</body>
+</html>
